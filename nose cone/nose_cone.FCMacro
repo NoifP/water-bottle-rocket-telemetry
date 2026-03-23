@@ -1,0 +1,512 @@
+# -*- coding: utf-8 -*-
+"""
+Water Rocket Nose Cone -- FreeCAD Python Macro
+Generates a two-part 3D-printable nose cone for a 2L water bottle rocket.
+
+Lower section: Electronics bay with friction-fit skirt
+Upper section: Ejectable ogive nose cone with parachute cavity
+
+Run in FreeCAD via Macro > Execute Macro.
+Export STLs via the export_stl() call at the bottom, or manually via File > Export.
+"""
+
+import math
+import os
+import FreeCAD as App
+import Part
+
+# =============================================================================
+# PARAMETERS -- adjust these to fit your hardware and printer
+# =============================================================================
+
+# --- Bottle ---
+BOTTLE_OD = 105.0           # 2L soda bottle outer diameter (mm)
+
+# --- Wall and structure ---
+WALL = 2.0                   # minimum wall thickness (mm)
+FLOOR = 2.0                  # floor plate thickness (mm)
+
+# --- Overall dimensions ---
+BASE_ID = BOTTLE_OD + 1.0    # 106mm -- inner diameter of bay (clearance over bottle)
+BASE_OD = BASE_ID + 2 * WALL # 110mm -- outer diameter of bay
+LOWER_HEIGHT = 100.0          # electronics bay height (mm)
+UPPER_HEIGHT = 110.0          # ogive + parachute cavity (mm)
+SKIRT_HEIGHT = 20.0           # friction-fit skirt below the bay (mm)
+SKIRT_INTERFERENCE = 0.3      # interference fit on skirt ID (mm, tighter = more grip)
+SKIRT_TAPER = 5.0             # tapered entry at bottom of skirt (mm)
+JOINT_OVERLAP = 15.0          # telescoping overlap between sections (mm)
+JOINT_CLEARANCE = 0.3         # diametral clearance on telescoping joint (mm)
+
+# --- Ogive shape ---
+OGIVE_RESOLUTION = 80         # number of profile points (smoother = more)
+OGIVE_TIP_RADIUS = 0.5        # blunt tip radius to avoid degenerate geometry (mm)
+
+# --- Parachute cavity (inside upper section) ---
+CHUTE_CAVITY_D = 60.0         # diameter (mm)
+CHUTE_CAVITY_H = 70.0         # cylindrical height before dome (mm)
+
+# --- Electronics: Wemos S2 Mini ---
+S2_L = 34.0                   # length (mm)
+S2_W = 26.0                   # width (mm)
+S2_H = 5.0                    # height with headers (mm)
+S2_POST_D = 4.0               # mounting post diameter (mm)
+S2_HOLE_D = 2.2               # M2 screw hole (mm)
+S2_HOLE_INSET = 2.0           # hole center distance from board edge (mm)
+
+# --- Electronics: MPU-6050 ---
+MPU_L = 21.0
+MPU_W = 16.0
+
+# --- Electronics: BMP388 / BME280 ---
+BARO_L = 13.0
+BARO_W = 10.0
+
+# --- Servo: SG90 ---
+SERVO_L = 23.0                # body length (mm)
+SERVO_W = 12.5                # body width (mm)
+SERVO_H = 22.0                # body height (mm)
+SERVO_TAB_W = 32.0            # total width including mounting tabs (mm)
+SERVO_TAB_T = 2.5             # tab thickness (mm)
+SERVO_TAB_Z_OFFSET = 16.0     # height of tab from servo bottom (mm)
+
+# --- Battery ---
+BATT_L = 50.0                 # length (mm)
+BATT_W = 30.0                 # width (mm)
+BATT_H = 8.0                  # thickness (mm)
+BATT_CRADLE_WALL = 2.0        # cradle wall thickness (mm)
+
+# --- Latch mechanism ---
+LATCH_PIN_D = 3.0             # pin diameter (mm)
+LATCH_GUIDE_LEN = 10.0        # guide tube length inside bay (mm)
+LATCH_GUIDE_REINFORCE = 2.0   # reinforcement wall around guide (mm)
+LATCH_PIN_TRAVEL = 8.0        # how far pin enters upper section (mm)
+
+# --- Holes ---
+VENT_D = 3.0                  # pressure vent hole diameter (mm)
+VENT_COUNT = 3                # number of vent holes
+USB_W = 12.0                  # USB-C port opening width (mm)
+USB_H = 7.0                   # USB-C port opening height (mm)
+
+# --- Spring seat (in upper section) ---
+SPRING_SEAT_D = 15.0          # recess diameter (mm)
+SPRING_SEAT_DEPTH = 5.0       # recess depth (mm)
+
+# --- Shock cord ---
+CORD_HOLE_D = 4.0             # anchor hole diameter (mm)
+
+# --- Derived constants ---
+BASE_R = BASE_OD / 2          # outer radius
+INNER_R = BASE_ID / 2         # inner radius (= BASE_R - WALL)
+SKIRT_ID = BOTTLE_OD / 2 + SKIRT_INTERFERENCE  # tight fit
+SPIGOT_OR = INNER_R - JOINT_CLEARANCE / 2      # upper section spigot outer radius
+SPIGOT_IR = SPIGOT_OR - WALL                   # upper section spigot inner radius
+
+# Vertical positions (Z=0 is bottom of lower section, skirt extends below)
+BATT_Z = FLOOR                                  # battery sits on the floor
+SHELF_Z = FLOOR + BATT_H + 4.0                  # mounting shelf above battery
+SERVO_Z = LOWER_HEIGHT - JOINT_OVERLAP - SERVO_H - 5.0  # servo below joint zone
+LATCH_Z = LOWER_HEIGHT - JOINT_OVERLAP / 2      # latch pin at joint midpoint
+USB_Z = SHELF_Z + 2.0                           # USB hole aligns with board
+
+# Angular positions (degrees around Z axis)
+# 0 degrees = positive X direction
+USB_ANGLE = 0.0              # USB access hole direction
+SERVO_ANGLE = 90.0           # servo positioned 90 deg from USB
+LATCH_ANGLE = 90.0           # latch pin exits through servo side
+VENT_START_ANGLE = 180.0     # vents on opposite side from USB
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def ogive_profile_points(base_radius, length, n_points):
+    """Generate tangent ogive profile as (radius, z) tuples.
+    z=0 is the base, z=length is the tip."""
+    rho = (base_radius**2 + length**2) / (2 * base_radius)
+    points = []
+    for i in range(n_points + 1):
+        z = length * i / n_points
+        r = math.sqrt(max(0, rho**2 - (length - z)**2)) + base_radius - rho
+        r = max(r, OGIVE_TIP_RADIUS)  # clamp tip to avoid zero radius
+        points.append((r, z))
+    return points
+
+
+def vec(x, y, z):
+    """Shorthand for App.Vector."""
+    return App.Vector(x, y, z)
+
+
+def radial_pos(angle_deg, radius):
+    """Return (x, y) for a point at given angle and radius."""
+    a = math.radians(angle_deg)
+    return radius * math.cos(a), radius * math.sin(a)
+
+
+def make_pcb_mounts(cx, cy, z_base, board_l, board_w, post_h,
+                    post_d, hole_d, inset):
+    """Create 4 mounting posts with screw holes for a PCB.
+    Returns a compound shape to fuse, and holes to cut."""
+    posts = None
+    holes = None
+    for dx in [inset, board_l - inset]:
+        for dy in [inset, board_w - inset]:
+            px = cx - board_l / 2 + dx
+            py = cy - board_w / 2 + dy
+            post = Part.makeCylinder(post_d / 2, post_h, vec(px, py, z_base))
+            hole = Part.makeCylinder(hole_d / 2, post_h + 4, vec(px, py, z_base - 1))
+            posts = post if posts is None else posts.fuse(post)
+            holes = hole if holes is None else holes.fuse(hole)
+    return posts, holes
+
+
+# =============================================================================
+# LOWER SECTION -- Electronics Bay
+# =============================================================================
+
+def make_lower_section():
+    """Build the lower electronics bay. Returns a Part.Shape."""
+
+    # --- 1. Outer cylinder ---
+    outer = Part.makeCylinder(BASE_R, LOWER_HEIGHT)
+
+    # --- 2. Inner cavity (2mm walls, 2mm floor) ---
+    inner = Part.makeCylinder(INNER_R, LOWER_HEIGHT - FLOOR, vec(0, 0, FLOOR))
+    shell = outer.cut(inner)
+
+    # --- 3. Friction-fit skirt ---
+    skirt_outer = Part.makeCylinder(BASE_R, SKIRT_HEIGHT, vec(0, 0, -SKIRT_HEIGHT))
+    skirt_inner = Part.makeCylinder(SKIRT_ID, SKIRT_HEIGHT, vec(0, 0, -SKIRT_HEIGHT))
+    skirt = skirt_outer.cut(skirt_inner)
+    shell = shell.fuse(skirt)
+
+    # Tapered entry at bottom of skirt for easier insertion
+    taper = Part.makeCone(SKIRT_ID + 1.5, SKIRT_ID, SKIRT_TAPER,
+                          vec(0, 0, -SKIRT_HEIGHT))
+    shell = shell.cut(taper)
+
+    # --- 4. Joint socket (widen top of cavity for spigot clearance) ---
+    socket_r = SPIGOT_OR + JOINT_CLEARANCE / 2 + 0.1  # slight extra clearance
+    socket = Part.makeCylinder(socket_r,
+                               JOINT_OVERLAP,
+                               vec(0, 0, LOWER_HEIGHT - JOINT_OVERLAP))
+    shell = shell.cut(socket)
+
+    # --- 5. Battery cradle ---
+    batt_cx, batt_cy = 0, 0  # centered
+    for sign in [-1, 1]:
+        wall_y = batt_cy + sign * (BATT_W / 2 + BATT_CRADLE_WALL / 2)
+        cradle_wall = Part.makeBox(
+            BATT_L + 4, BATT_CRADLE_WALL, BATT_H + 2,
+            vec(batt_cx - (BATT_L + 4) / 2, wall_y - BATT_CRADLE_WALL / 2, BATT_Z)
+        )
+        shell = shell.fuse(cradle_wall)
+
+    # --- 6. Mounting shelf for S2 Mini ---
+    # Shelf is a flat disc/plate inside the cylinder
+    shelf_plate = Part.makeCylinder(INNER_R - 1, 2.0, vec(0, 0, SHELF_Z))
+    shell = shell.fuse(shelf_plate)
+
+    # S2 Mini mounting posts on the shelf
+    s2_cx, s2_cy = 0, 0
+    # Offset S2 so USB-C faces the USB_ANGLE wall
+    usb_x, usb_y = radial_pos(USB_ANGLE, INNER_R - 10)
+    s2_cx = usb_x - S2_L / 2 if abs(math.cos(math.radians(USB_ANGLE))) > 0.5 else 0
+    s2_cy = usb_y - S2_W / 2 if abs(math.sin(math.radians(USB_ANGLE))) > 0.5 else 0
+    # Keep it simple: center the S2 with USB-C facing +X
+    s2_cx, s2_cy = 0, 0
+
+    posts, holes = make_pcb_mounts(
+        s2_cx, s2_cy, SHELF_Z + 2, S2_L, S2_W, S2_H + 2,
+        S2_POST_D, S2_HOLE_D, S2_HOLE_INSET
+    )
+    shell = shell.fuse(posts)
+    shell = shell.cut(holes)
+
+    # --- 7. Sensor mount posts (MPU-6050 next to S2 Mini) ---
+    mpu_cx = s2_cx + S2_L / 2 + 2 + MPU_L / 2  # to the right of S2
+    mpu_cy = s2_cy
+    # Only add posts if they fit inside the cylinder
+    if math.sqrt(mpu_cx**2 + mpu_cy**2) + MPU_L / 2 < INNER_R - 2:
+        mpu_posts, mpu_holes = make_pcb_mounts(
+            mpu_cx, mpu_cy, SHELF_Z + 2, MPU_L, MPU_W, 4.0,
+            3.0, 2.0, 1.5
+        )
+        shell = shell.fuse(mpu_posts)
+        shell = shell.cut(mpu_holes)
+
+    # --- 8. Servo pocket ---
+    servo_angle_rad = math.radians(SERVO_ANGLE)
+    # Position servo against the inner wall
+    servo_wall_r = INNER_R - SERVO_W - 1  # radial center of servo
+    servo_cx = servo_wall_r * math.cos(servo_angle_rad)
+    servo_cy = servo_wall_r * math.sin(servo_angle_rad)
+
+    # Create servo body pocket (rectangular box, slightly oversized)
+    pocket = Part.makeBox(
+        SERVO_L + 1, SERVO_W + 1, SERVO_H + 1,
+        vec(servo_cx - (SERVO_L + 1) / 2,
+            servo_cy - (SERVO_W + 1) / 2,
+            SERVO_Z)
+    )
+    shell = shell.cut(pocket)
+
+    # Servo mounting tab ledges
+    tab_ledge = Part.makeBox(
+        SERVO_TAB_W + 2, SERVO_W + 4, SERVO_TAB_T,
+        vec(servo_cx - (SERVO_TAB_W + 2) / 2,
+            servo_cy - (SERVO_W + 4) / 2,
+            SERVO_Z + SERVO_TAB_Z_OFFSET)
+    )
+    # Intersect with the shell interior to avoid poking outside
+    interior_cylinder = Part.makeCylinder(INNER_R, LOWER_HEIGHT, vec(0, 0, 0))
+    tab_ledge = tab_ledge.common(interior_cylinder)
+    shell = shell.fuse(tab_ledge)
+
+    # --- 9. Latch pin guide hole ---
+    latch_dir_x = math.cos(math.radians(LATCH_ANGLE))
+    latch_dir_y = math.sin(math.radians(LATCH_ANGLE))
+
+    # Through-hole in the wall
+    guide_hole = Part.makeCylinder(
+        LATCH_PIN_D / 2 + 0.2, BASE_OD,
+        vec(-BASE_R * latch_dir_x, -BASE_R * latch_dir_y, LATCH_Z),
+        vec(latch_dir_x, latch_dir_y, 0)
+    )
+    shell = shell.cut(guide_hole)
+
+    # Reinforcing tube around the guide hole (inside the bay)
+    reinforce_or = LATCH_PIN_D / 2 + LATCH_GUIDE_REINFORCE
+    reinforce_ir = LATCH_PIN_D / 2 + 0.3
+    reinforce_start_r = INNER_R - LATCH_GUIDE_LEN
+    reinforce_outer = Part.makeCylinder(
+        reinforce_or, LATCH_GUIDE_LEN,
+        vec(reinforce_start_r * latch_dir_x, reinforce_start_r * latch_dir_y, LATCH_Z),
+        vec(latch_dir_x, latch_dir_y, 0)
+    )
+    reinforce_inner = Part.makeCylinder(
+        reinforce_ir, LATCH_GUIDE_LEN + 2,
+        vec((reinforce_start_r - 1) * latch_dir_x,
+            (reinforce_start_r - 1) * latch_dir_y, LATCH_Z),
+        vec(latch_dir_x, latch_dir_y, 0)
+    )
+    reinforce = reinforce_outer.cut(reinforce_inner)
+    shell = shell.fuse(reinforce)
+
+    # --- 10. USB access hole ---
+    usb_dir_x = math.cos(math.radians(USB_ANGLE))
+    usb_dir_y = math.sin(math.radians(USB_ANGLE))
+    usb_hole = Part.makeBox(
+        WALL + 4, USB_W + 2, USB_H + 2,
+        vec(INNER_R - 1, -(USB_W + 2) / 2, USB_Z - 1)
+    )
+    # Rotate to USB_ANGLE
+    if USB_ANGLE != 0:
+        usb_hole.rotate(vec(0, 0, 0), vec(0, 0, 1), USB_ANGLE)
+    shell = shell.cut(usb_hole)
+
+    # --- 11. Pressure vent holes ---
+    for i in range(VENT_COUNT):
+        angle = math.radians(VENT_START_ANGLE + i * 25)
+        vx = (BASE_R - 1) * math.cos(angle)
+        vy = (BASE_R - 1) * math.sin(angle)
+        vent = Part.makeCylinder(
+            VENT_D / 2, WALL + 4,
+            vec(vx - (WALL / 2 + 1) * math.cos(angle),
+                vy - (WALL / 2 + 1) * math.sin(angle),
+                SHELF_Z + 8),
+            vec(math.cos(angle), math.sin(angle), 0)
+        )
+        shell = shell.cut(vent)
+
+    return shell
+
+
+# =============================================================================
+# UPPER SECTION -- Ejectable Ogive Nose Cone
+# =============================================================================
+
+def make_upper_section():
+    """Build the upper ejectable nose cone. Returns a Part.Shape."""
+
+    z_base = LOWER_HEIGHT  # absolute Z where upper meets lower
+
+    # --- 1. Ogive solid via profile revolution ---
+    profile = ogive_profile_points(BASE_R, UPPER_HEIGHT, OGIVE_RESOLUTION)
+
+    # Build profile points in XZ plane (for revolution around Z)
+    # profile is (radius, z_local) where z_local=0 is base, z_local=UPPER_HEIGHT is tip
+    xz_points = []
+    for r, z_local in profile:
+        xz_points.append(vec(r, 0, z_base + z_local))
+
+    # Create BSpline through the ogive points
+    bspline = Part.BSplineCurve()
+    bspline.interpolate(xz_points)
+    ogive_edge = bspline.toShape()
+
+    # Close the profile: ogive curve, then straight line from base to axis,
+    # then axis line from bottom to tip
+    base_pt = xz_points[0]    # (BASE_R, 0, z_base)
+    tip_pt = xz_points[-1]    # (~OGIVE_TIP_RADIUS, 0, z_base + UPPER_HEIGHT)
+
+    # Line from tip to axis
+    tip_to_axis = Part.makeLine(tip_pt, vec(0, 0, z_base + UPPER_HEIGHT))
+    # Line along axis from top to bottom
+    axis_line = Part.makeLine(vec(0, 0, z_base + UPPER_HEIGHT), vec(0, 0, z_base))
+    # Line from axis at base to ogive base point
+    base_line = Part.makeLine(vec(0, 0, z_base), base_pt)
+
+    wire = Part.Wire([base_line, ogive_edge, tip_to_axis, axis_line])
+    face = Part.Face(wire)
+    solid = face.revolve(vec(0, 0, 0), vec(0, 0, 1), 360)
+
+    # --- 2. Parachute cavity ---
+    cavity_r = CHUTE_CAVITY_D / 2
+    cavity_cyl = Part.makeCylinder(cavity_r, CHUTE_CAVITY_H, vec(0, 0, z_base))
+
+    # Hemispherical dome at the top of the cavity
+    dome = Part.makeSphere(cavity_r, vec(0, 0, z_base + CHUTE_CAVITY_H))
+    # Keep only the upper hemisphere
+    clip_box = Part.makeBox(
+        cavity_r * 3, cavity_r * 3, cavity_r,
+        vec(-cavity_r * 1.5, -cavity_r * 1.5, z_base + CHUTE_CAVITY_H)
+    )
+    dome = dome.common(clip_box)
+    cavity = cavity_cyl.fuse(dome)
+    solid = solid.cut(cavity)
+
+    # --- 3. Telescoping spigot ---
+    spigot = Part.makeCylinder(SPIGOT_OR, JOINT_OVERLAP,
+                               vec(0, 0, z_base - JOINT_OVERLAP))
+    spigot_inner = Part.makeCylinder(SPIGOT_IR, JOINT_OVERLAP,
+                                     vec(0, 0, z_base - JOINT_OVERLAP))
+    spigot_ring = spigot.cut(spigot_inner)
+    solid = solid.fuse(spigot_ring)
+
+    # --- 4. Latch pin receiver hole ---
+    latch_dir_x = math.cos(math.radians(LATCH_ANGLE))
+    latch_dir_y = math.sin(math.radians(LATCH_ANGLE))
+
+    # Blind hole from the outside of the spigot, LATCH_PIN_TRAVEL deep
+    receiver = Part.makeCylinder(
+        LATCH_PIN_D / 2 + 0.15,  # slight clearance
+        LATCH_PIN_TRAVEL + 2,
+        vec((SPIGOT_OR - LATCH_PIN_TRAVEL - 1) * latch_dir_x,
+            (SPIGOT_OR - LATCH_PIN_TRAVEL - 1) * latch_dir_y,
+            LATCH_Z),
+        vec(latch_dir_x, latch_dir_y, 0)
+    )
+    solid = solid.cut(receiver)
+
+    # --- 5. Spring seat ---
+    spring_seat = Part.makeCylinder(
+        SPRING_SEAT_D / 2, SPRING_SEAT_DEPTH,
+        vec(0, 0, z_base - JOINT_OVERLAP)
+    )
+    solid = solid.cut(spring_seat)
+
+    # --- 6. Shock cord anchor hole ---
+    # Through-hole near the base of the cavity, going radially through the wall
+    cord_hole = Part.makeCylinder(
+        CORD_HOLE_D / 2, BASE_R,
+        vec(0, -(cavity_r + 5), z_base + 10),
+        vec(0, 1, 0)
+    )
+    solid = solid.cut(cord_hole)
+
+    return solid
+
+
+# =============================================================================
+# DOCUMENT ASSEMBLY AND EXPORT
+# =============================================================================
+
+def add_to_document(lower_shape, upper_shape):
+    """Add both parts to the active FreeCAD document."""
+    doc = App.ActiveDocument
+    if doc is None:
+        doc = App.newDocument("WaterRocketNoseCone")
+
+    # Remove existing objects if re-running
+    for name in ["LowerElectronicsBay", "UpperNoseCone"]:
+        obj = doc.getObject(name)
+        if obj:
+            doc.removeObject(name)
+
+    # Lower electronics bay
+    lower_obj = doc.addObject("Part::Feature", "LowerElectronicsBay")
+    lower_obj.Shape = lower_shape
+    lower_obj.ViewObject.ShapeColor = (0.2, 0.7, 0.2)  # green
+
+    # Upper ejectable nose cone
+    upper_obj = doc.addObject("Part::Feature", "UpperNoseCone")
+    upper_obj.Shape = upper_shape
+    upper_obj.ViewObject.ShapeColor = (0.8, 0.2, 0.2)  # red
+
+    doc.recompute()
+
+    try:
+        import FreeCADGui as Gui
+        Gui.ActiveDocument.ActiveView.fitAll()
+    except Exception:
+        pass  # headless mode
+
+    App.Console.PrintMessage("Nose cone generated successfully.\n")
+    App.Console.PrintMessage(
+        f"Lower bay: {lower_shape.BoundBox.XLength:.1f} x "
+        f"{lower_shape.BoundBox.YLength:.1f} x "
+        f"{lower_shape.BoundBox.ZLength:.1f} mm\n"
+    )
+    App.Console.PrintMessage(
+        f"Upper cone: {upper_shape.BoundBox.XLength:.1f} x "
+        f"{upper_shape.BoundBox.YLength:.1f} x "
+        f"{upper_shape.BoundBox.ZLength:.1f} mm\n"
+    )
+
+    return doc
+
+
+def export_stl(doc, output_dir=None):
+    """Export both parts as STL files."""
+    import Mesh
+
+    if output_dir is None:
+        if doc.FileName:
+            output_dir = os.path.dirname(doc.FileName)
+        else:
+            output_dir = os.path.expanduser("~")
+
+    for name in ["LowerElectronicsBay", "UpperNoseCone"]:
+        obj = doc.getObject(name)
+        if obj:
+            stl_path = os.path.join(output_dir, f"{name}.stl")
+            Mesh.export([obj], stl_path)
+            App.Console.PrintMessage(f"Exported: {stl_path}\n")
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+def main():
+    App.Console.PrintMessage("Building water rocket nose cone...\n")
+
+    App.Console.PrintMessage("  Building lower electronics bay...\n")
+    lower = make_lower_section()
+
+    App.Console.PrintMessage("  Building upper nose cone...\n")
+    upper = make_upper_section()
+
+    App.Console.PrintMessage("  Adding to document...\n")
+    doc = add_to_document(lower, upper)
+
+    App.Console.PrintMessage("  Exporting STL files...\n")
+    export_stl(doc)
+
+    App.Console.PrintMessage("Done!\n")
+
+
+# Run
+main()

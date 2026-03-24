@@ -39,11 +39,11 @@ JOINT_CLEARANCE = 0.3         # diametral clearance on telescoping joint (mm)
 
 # --- Ogive shape ---
 OGIVE_RESOLUTION = 80         # number of profile points (smoother = more)
-OGIVE_TIP_RADIUS = 0.0        # not used with loft approach (vertex closes the tip)
+OGIVE_TIP_RADIUS = 0.01       # blunt tip radius to avoid degenerate geometry (mm)
 
 # --- Parachute cavity (inside upper section) ---
 CHUTE_CAVITY_D = 60.0         # diameter (mm)
-CHUTE_CAVITY_H = 50.0         # cylindrical height before dome (mm)
+CHUTE_CAVITY_H = 70.0         # cylindrical height before dome (mm)
 
 # --- Electronics: Wemos S2 Mini ---
 S2_L = 34.0                   # length (mm)
@@ -332,22 +332,20 @@ def make_upper_section():
 
     z_base = LOWER_HEIGHT  # absolute Z where upper meets lower
 
-    # --- 1. Ogive solid via lofted cross-sections ---
-    # This approach lofts circular cross-sections down to a vertex at the tip,
-    # producing a single watertight solid with no boolean operations.
+    # --- 1. Ogive solid via profile revolution ---
     profile = ogive_profile_points(BASE_R, UPPER_HEIGHT, OGIVE_RESOLUTION)
 
-    # Build cross-section wires from base to tip
-    sections = []
+    # Build closed profile polygon in XZ plane for revolution around Z.
+    # Path: axis bottom → ogive base → ogive tip → axis top → back to start
+    # The last ogive point is at r=0 (on the axis), so no extra tip point needed
+    poly_points = [vec(0, 0, z_base)]  # start on axis at base
     for r, z_local in profile:
-        if r > 0.01:  # skip degenerate near-zero circles
-            circle = Part.makeCircle(r, vec(0, 0, z_base + z_local), vec(0, 0, 1))
-            sections.append(Part.Wire([circle]))
+        poly_points.append(vec(r, 0, z_base + z_local))
+    poly_points.append(vec(0, 0, z_base))  # close back to start
 
-    # Tip: a single vertex (makeLoft accepts this to close the shape to a point)
-    sections.append(Part.Vertex(vec(0, 0, z_base + UPPER_HEIGHT)))
-
-    solid = Part.makeLoft(sections, True)  # True = solid
+    wire = Part.makePolygon(poly_points)
+    face = Part.Face(wire)
+    solid = face.revolve(vec(0, 0, 0), vec(0, 0, 1), 360)
 
     # --- 2. Parachute cavity ---
     cavity_r = CHUTE_CAVITY_D / 2
@@ -362,6 +360,8 @@ def make_upper_section():
     )
     dome = dome.common(clip_box)
     cavity = cavity_cyl.fuse(dome)
+    # Clip cavity to the ogive interior so the dome can't poke through the wall
+    cavity = cavity.common(solid)
     solid = solid.cut(cavity)
 
     # --- 3. Telescoping spigot ---

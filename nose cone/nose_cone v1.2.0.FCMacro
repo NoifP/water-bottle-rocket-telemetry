@@ -39,7 +39,7 @@ JOINT_CLEARANCE = 0.3         # diametral clearance on telescoping joint (mm)
 
 # --- Ogive shape ---
 OGIVE_RESOLUTION = 80         # number of profile points (smoother = more)
-OGIVE_TIP_RADIUS = 0.0        # not used with loft approach (vertex closes the tip)
+OGIVE_TIP_RADIUS = 2.0        # blunt tip radius to avoid degenerate geometry (mm)
 
 # --- Parachute cavity (inside upper section) ---
 CHUTE_CAVITY_D = 60.0         # diameter (mm)
@@ -128,7 +128,7 @@ def ogive_profile_points(base_radius, length, n_points):
     for i in range(n_points + 1):
         z = length * i / n_points
         r = math.sqrt(max(0, rho**2 - z**2)) + base_radius - rho
-        r = max(r, 0.0)  # ensure no negative from floating point
+        r = max(r, OGIVE_TIP_RADIUS)  # clamp tip for clean geometry
         points.append((r, z))
     return points
 

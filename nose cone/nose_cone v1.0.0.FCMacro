@@ -39,11 +39,11 @@ JOINT_CLEARANCE = 0.3         # diametral clearance on telescoping joint (mm)
 
 # --- Ogive shape ---
 OGIVE_RESOLUTION = 80         # number of profile points (smoother = more)
-OGIVE_TIP_RADIUS = 0.0        # not used with loft approach (vertex closes the tip)
+OGIVE_TIP_RADIUS = 0.5        # blunt tip radius to avoid degenerate geometry (mm)
 
 # --- Parachute cavity (inside upper section) ---
 CHUTE_CAVITY_D = 60.0         # diameter (mm)
-CHUTE_CAVITY_H = 50.0         # cylindrical height before dome (mm)
+CHUTE_CAVITY_H = 70.0         # cylindrical height before dome (mm)
 
 # --- Electronics: Wemos S2 Mini ---
 S2_L = 34.0                   # length (mm)
@@ -127,8 +127,8 @@ def ogive_profile_points(base_radius, length, n_points):
     points = []
     for i in range(n_points + 1):
         z = length * i / n_points
-        r = math.sqrt(max(0, rho**2 - z**2)) + base_radius - rho
-        r = max(r, 0.0)  # ensure no negative from floating point
+        r = math.sqrt(max(0, rho**2 - (length - z)**2)) + base_radius - rho
+        r = max(r, OGIVE_TIP_RADIUS)  # clamp tip to avoid zero radius
         points.append((r, z))
     return points
 
@@ -332,22 +332,35 @@ def make_upper_section():
 
     z_base = LOWER_HEIGHT  # absolute Z where upper meets lower
 
-    # --- 1. Ogive solid via lofted cross-sections ---
-    # This approach lofts circular cross-sections down to a vertex at the tip,
-    # producing a single watertight solid with no boolean operations.
+    # --- 1. Ogive solid via profile revolution ---
     profile = ogive_profile_points(BASE_R, UPPER_HEIGHT, OGIVE_RESOLUTION)
 
-    # Build cross-section wires from base to tip
-    sections = []
+    # Build profile points in XZ plane (for revolution around Z)
+    # profile is (radius, z_local) where z_local=0 is base, z_local=UPPER_HEIGHT is tip
+    xz_points = []
     for r, z_local in profile:
-        if r > 0.01:  # skip degenerate near-zero circles
-            circle = Part.makeCircle(r, vec(0, 0, z_base + z_local), vec(0, 0, 1))
-            sections.append(Part.Wire([circle]))
+        xz_points.append(vec(r, 0, z_base + z_local))
 
-    # Tip: a single vertex (makeLoft accepts this to close the shape to a point)
-    sections.append(Part.Vertex(vec(0, 0, z_base + UPPER_HEIGHT)))
+    # Create BSpline through the ogive points
+    bspline = Part.BSplineCurve()
+    bspline.interpolate(xz_points)
+    ogive_edge = bspline.toShape()
 
-    solid = Part.makeLoft(sections, True)  # True = solid
+    # Close the profile: ogive curve, then straight line from base to axis,
+    # then axis line from bottom to tip
+    base_pt = xz_points[0]    # (BASE_R, 0, z_base)
+    tip_pt = xz_points[-1]    # (~OGIVE_TIP_RADIUS, 0, z_base + UPPER_HEIGHT)
+
+    # Line from tip to axis
+    tip_to_axis = Part.makeLine(tip_pt, vec(0, 0, z_base + UPPER_HEIGHT))
+    # Line along axis from top to bottom
+    axis_line = Part.makeLine(vec(0, 0, z_base + UPPER_HEIGHT), vec(0, 0, z_base))
+    # Line from axis at base to ogive base point
+    base_line = Part.makeLine(vec(0, 0, z_base), base_pt)
+
+    wire = Part.Wire([base_line, ogive_edge, tip_to_axis, axis_line])
+    face = Part.Face(wire)
+    solid = face.revolve(vec(0, 0, 0), vec(0, 0, 1), 360)
 
     # --- 2. Parachute cavity ---
     cavity_r = CHUTE_CAVITY_D / 2

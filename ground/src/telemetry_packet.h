@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 
 // ============================================================================
 // Shared telemetry protocol between rocket and ground station

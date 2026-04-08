@@ -211,19 +211,27 @@ If you don't have PlatformIO yet:
 
 ### Step 4: Configure MAC Addresses
 
-By default, both devices use broadcast (FF:FF:FF:FF:FF:FF), which works for basic testing. For reliable operation, configure each device with the other's MAC address:
+By default, both devices use broadcast (FF:FF:FF:FF:FF:FF), which works for basic testing. For reliable operation, configure each device with the other's MAC address using local config files (these are gitignored so they won't be committed to the repo):
 
-1. Edit `rocket/src/config.h` -- replace the `GROUND_MAC` line:
+1. Copy the example files:
+   ```
+   cp rocket/src/config_local.h.example rocket/src/config_local.h
+   cp ground/src/config_local.h.example ground/src/config_local.h
+   ```
+
+2. Edit `rocket/src/config_local.h` -- set the ground station MAC address noted in Step 3:
    ```cpp
+   #undef GROUND_MAC
    static const uint8_t GROUND_MAC[] = {0xYY, 0xYY, 0xYY, 0xYY, 0xYY, 0xYY};
    ```
 
-2. Edit `ground/src/config.h` -- replace the `ROCKET_MAC` line:
+3. Edit `ground/src/config_local.h` -- set the rocket MAC address noted in Step 2:
    ```cpp
+   #undef ROCKET_MAC
    static const uint8_t ROCKET_MAC[] = {0xXX, 0xXX, 0xXX, 0xXX, 0xXX, 0xXX};
    ```
 
-3. Re-flash both devices:
+4. Re-flash both devices:
    ```
    cd rocket && pio run --target upload
    cd ../ground && pio run --target upload

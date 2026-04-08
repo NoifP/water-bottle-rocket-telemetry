@@ -1,0 +1,7 @@
+#pragma once
+// Local overrides -- copy this file to config_local.h and customise.
+// config_local.h is gitignored and will not be committed to the repo.
+
+// Override the ground station MAC address (get this from the ground station's boot log)
+#undef GROUND_MAC
+static const uint8_t GROUND_MAC[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};

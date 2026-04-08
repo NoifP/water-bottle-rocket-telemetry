@@ -47,3 +47,8 @@
 #define ESPNOW_CHANNEL         1
 // Ground station MAC address -- update this to match your ground station
 static const uint8_t GROUND_MAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // broadcast
+
+// Local overrides (gitignored) -- create config_local.h to override any of the above
+#if __has_include("config_local.h")
+#include "config_local.h"
+#endif

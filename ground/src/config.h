@@ -50,3 +50,8 @@ static const uint8_t ROCKET_MAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // bro
 // --- Screen dimensions ---
 #define SCREEN_W 240
 #define SCREEN_H 320
+
+// Local overrides (gitignored) -- create config_local.h to override any of the above
+#if __has_include("config_local.h")
+#include "config_local.h"
+#endif

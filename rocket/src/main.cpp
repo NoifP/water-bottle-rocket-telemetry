@@ -58,7 +58,7 @@ static float read_battery_voltage() {
 
 void setup() {
     Serial.begin(115200);
-    delay(1000); // Wait for USB CDC
+    { unsigned long t = millis(); while (!Serial && millis() - t < 10000); } // Wait up to 10s for USB CDC
     Serial.println("\n=== Water Rocket Telemetry - Rocket ===");
 
     pinMode(PIN_LED, OUTPUT);

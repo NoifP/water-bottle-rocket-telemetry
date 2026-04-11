@@ -2,7 +2,7 @@
 
 ## Context
 
-Two ESP32-based devices need firmware: a rocket (Wemos S2 Mini) that reads sensors, detects apogee, deploys a parachute, and transmits telemetry; and a ground station (CYD) that displays telemetry, logs to SD, and sends commands. Communication is via ESP-NOW at 50 Hz. Both use Arduino framework via PlatformIO.
+Two ESP32-based devices need firmware: a rocket (Wemos C3 Pico) that reads sensors, detects apogee, deploys a parachute, and transmits telemetry; and a ground station (CYD) that displays telemetry, logs to SD, and sends commands. Communication is via ESP-NOW at 50 Hz. Both use Arduino framework via PlatformIO.
 
 ---
 
@@ -10,7 +10,7 @@ Two ESP32-based devices need firmware: a rocket (Wemos S2 Mini) that reads senso
 
 ```
 water-rocket-telemetry/
-├── rocket/                        # PlatformIO project -- Wemos S2 Mini
+├── rocket/                        # PlatformIO project -- Wemos C3 Pico
 │   ├── platformio.ini
 │   └── src/
 │       ├── main.cpp               # setup/loop orchestration
@@ -40,24 +40,24 @@ water-rocket-telemetry/
 
 ---
 
-## Part 1: Rocket Firmware (Wemos S2 Mini)
+## Part 1: Rocket Firmware (Wemos C3 Pico)
 
 ### Pin Assignments
 
-| Function       | Pin     | Notes                              |
-|----------------|---------|-------------------------------------|
-| I2C SDA        | GPIO 33 | MPU-6050 + BMP388/BME280 share bus |
-| I2C SCL        | GPIO 35 |                                     |
-| Servo PWM      | GPIO 11 | LEDC peripheral via ESP32Servo     |
-| Battery ADC    | GPIO 3  | Voltage divider from LiPo          |
-| Onboard LED    | GPIO 15 | Status indication                  |
+| Function       | Pin    | Notes                              |
+|----------------|--------|-------------------------------------|
+| I2C SDA        | GPIO 4 | MPU-6050 + BMP388/BME280 share bus |
+| I2C SCL        | GPIO 5 |                                     |
+| Servo PWM      | GPIO 6 | LEDC peripheral via ESP32Servo     |
+| Battery ADC    | GPIO 3 | ADC1 -- safe with WiFi active      |
+| Onboard LED    | GPIO 7 | Status indication (blue LED)       |
 
 ### PlatformIO Config (`rocket/platformio.ini`)
 
 ```ini
-[env:s2mini]
+[env:c3pico]
 platform = espressif32
-board = lolin_s2_mini
+board = lolin_c3_pico
 framework = arduino
 monitor_speed = 115200
 lib_deps =
@@ -257,7 +257,7 @@ loop() runs freely, subsystems rate-limited:
 
 ## ESP-NOW Compatibility Note
 
-ESP32-S2 (rocket) and original ESP32 (ground station) are confirmed compatible over ESP-NOW. Both must use the same WiFi channel (default: 1). MAC addresses hardcoded in each device's `config.h`.
+ESP32-C3 (rocket) and original ESP32 (ground station) are confirmed compatible over ESP-NOW. Both must use the same WiFi channel (default: 1). MAC addresses hardcoded in each device's `config.h`.
 
 ---
 

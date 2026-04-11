@@ -5,12 +5,12 @@
 // Rocket configuration -- pins, timing, thresholds
 // ============================================================================
 
-// --- Pin assignments (Wemos S2 Mini) ---
-#define PIN_SDA          33
-#define PIN_SCL          35
-#define PIN_SERVO        11
-#define PIN_BATTERY_ADC  3
-#define PIN_LED          15
+// --- Pin assignments (Wemos C3 Pico) ---
+#define PIN_SDA          4
+#define PIN_SCL          5
+#define PIN_SERVO        6
+#define PIN_BATTERY_ADC  3   // ADC1 -- safe to use with WiFi active
+#define PIN_LED          7   // Onboard blue LED
 
 // --- Timing ---
 #define LOOP_INTERVAL_US      20000   // 50 Hz = 20ms

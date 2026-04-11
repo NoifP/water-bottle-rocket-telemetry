@@ -7,42 +7,45 @@ This guide covers wiring the sensors and servo to the rocket board, preparing th
 ## Prerequisites
 
 - **PlatformIO** installed (either the VS Code extension or CLI)
-- USB-C cable for the Wemos S2 Mini
+- USB-C cable for the Wemos C3 Pico
 - USB-C or micro-USB cable for the CYD ground station
 - A microSD card (FAT32 formatted) for flight logging
 
 ---
 
-## Part 1: Rocket Wiring (Wemos S2 Mini)
+## Part 1: Rocket Wiring (Wemos C3 Pico)
+
+![Rocket wiring diagram](hardware%20docs/rocket-wiring.svg)
+
 
 The rocket has three external connections: two I2C sensors and one servo. All share the same power rails.
 
-### Wemos S2 Mini Pinout Reference
+### Wemos C3 Pico Pinout Reference
 
 ```
-        (USB end down, top view)
+        (USB-C at bottom, top view)
 
   Left side          Right side
   ---------          ----------
-  EN    1            40    39
-  3     2            38    37
-  5     4            36    35  <-- SCL
-  7     6            34    33  <-- SDA
-  9     8            21    18
-  11    10           17    16
-  12    13           GND   GND
-  3.3V  14           15    VBUS
-                    (near USB)
+  GND                RST
+  3.3V               GPIO 10
+  GPIO 4  <-- SDA    GPIO 9  (BOOT)
+  GPIO 5  <-- SCL    GPIO 8
+  GPIO 6  <-- SERVO  GPIO 7  <-- LED (onboard)
+  GPIO 2             GPIO 20 (TX0)
+  GPIO 3  <-- ADC    GPIO 21 (RX0)
+  GPIO 1             VBUS (5V)
+         [USB-C]
 ```
 
 ### I2C Bus (shared by both sensors)
 
 Both the MPU-6050 and the BMP388 (or BME280) connect to the same I2C bus:
 
-| Signal | S2 Mini Pin | Wire Colour (suggested) |
+| Signal | C3 Pico Pin | Wire Colour (suggested) |
 |--------|-------------|------------------------|
-| SDA    | GPIO 33     | Blue                   |
-| SCL    | GPIO 35     | Yellow                 |
+| SDA    | GPIO 4      | Blue                   |
+| SCL    | GPIO 5      | Yellow                 |
 | VCC    | 3.3V        | Red                    |
 | GND    | GND         | Black                  |
 
@@ -59,15 +62,15 @@ Use **either** a BMP388 or a BME280 for the barometer -- the firmware auto-detec
 ### Wiring Diagram -- I2C Sensors
 
 ```
-S2 Mini                    MPU-6050          BMP388 / BME280
---------                   --------          ---------------
+C3 Pico                    MPU-6050          BMP388 / BME280
+-------                    --------          ---------------
 3.3V  ──────┬───────────── VCC               VCC ──────┘
             │                                           │
 GND   ──────┼───────────── GND               GND ──────┘
             │                                           │
-GPIO 33 ────┼───────────── SDA               SDA ──────┘
+GPIO 4  ────┼───────────── SDA               SDA ──────┘
 (SDA)       │                                           │
-GPIO 35 ────┴───────────── SCL               SCL ──────┘
+GPIO 5  ────┴───────────── SCL               SCL ──────┘
 (SCL)
 ```
 
@@ -75,9 +78,9 @@ Both sensors connect in parallel on the same 4 wires. If your sensor breakout bo
 
 ### Parachute Servo
 
-| Signal | S2 Mini Pin | Servo Wire |
+| Signal | C3 Pico Pin | Servo Wire |
 |--------|-------------|------------|
-| PWM    | GPIO 11     | Signal (orange/white) |
+| PWM    | GPIO 6      | Signal (orange/white) |
 | VCC    | VBUS (5V)   | Power (red) |
 | GND    | GND         | Ground (brown/black) |
 
@@ -85,7 +88,7 @@ Both sensors connect in parallel on the same 4 wires. If your sensor breakout bo
 
 ### Battery Voltage Monitoring (optional)
 
-To monitor the LiPo voltage, connect a voltage divider to **GPIO 3**:
+To monitor the LiPo voltage, connect a voltage divider to **GPIO 3** (ADC1 -- safe to use with WiFi active):
 
 ```
 LiPo (+) ──── [R1 10kΩ] ──┬── GPIO 3 (ADC)
@@ -99,13 +102,13 @@ With equal resistors, the divider ratio is 2:1, matching the `BATTERY_DIVIDER_RA
 
 ### Summary -- All Rocket Connections
 
-| S2 Mini Pin | Connected To         |
+| C3 Pico Pin | Connected To         |
 |-------------|----------------------|
-| GPIO 33     | SDA (MPU-6050 + BMP388/BME280) |
-| GPIO 35     | SCL (MPU-6050 + BMP388/BME280) |
-| GPIO 11     | Servo signal wire    |
+| GPIO 4      | SDA (MPU-6050 + BMP388/BME280) |
+| GPIO 5      | SCL (MPU-6050 + BMP388/BME280) |
+| GPIO 6      | Servo signal wire    |
 | GPIO 3      | Battery voltage divider (optional) |
-| GPIO 15     | Onboard LED (built-in, no wiring needed) |
+| GPIO 7      | Onboard LED (built-in, no wiring needed) |
 | 3.3V        | Sensor VCC           |
 | VBUS (5V)   | Servo VCC            |
 | GND         | Common ground        |
@@ -147,14 +150,14 @@ If you don't have PlatformIO yet:
 - **VS Code**: Install the "PlatformIO IDE" extension from the marketplace
 - **CLI**: `pip install platformio`
 
-### Step 2: Flash the Rocket (Wemos S2 Mini)
+### Step 2: Flash the Rocket (Wemos C3 Pico)
 
-1. Connect the S2 Mini to your computer via USB-C
+1. Connect the C3 Pico to your computer via USB-C
 
-2. **Enter bootloader mode** (required for first flash on S2 Mini):
-   - Hold the **0** button (GPIO 0, near the USB port)
+2. **Enter bootloader mode** (required for first flash):
+   - Hold the **9** button (BOOT, near the USB port)
    - While holding, press and release the **RST** button
-   - Release the **0** button
+   - Release the **9** button
    - The board should now appear as a USB device
 
 3. Open a terminal in the project root and run:
@@ -277,7 +280,7 @@ The touchscreen may need calibration for your specific CYD unit. If button press
 | "No barometer found" | Check I2C wiring. Try address 0x76 if BMP388 not found at 0x77. |
 | Servo twitches on power-up | Normal -- it briefly moves to the locked position then detaches. |
 | No serial output | Ensure `ARDUINO_USB_CDC_ON_BOOT=1` is in platformio.ini. Re-enter bootloader mode and flash again. |
-| Upload fails | Enter bootloader mode manually: hold GPIO 0, press RST, release GPIO 0. |
+| Upload fails | Enter bootloader mode manually: hold GPIO 9 (BOOT), press RST, release GPIO 9. |
 
 ### Ground Station
 

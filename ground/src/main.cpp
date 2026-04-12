@@ -4,6 +4,7 @@
 #include "comms.h"
 #include "display.h"
 #include "touch.h"
+#include "calibrate.h"
 #include "sdlog.h"
 
 static AppState app = {};
@@ -113,6 +114,16 @@ void setup() {
     display_init();
     display_draw_layout();
     touch_init();
+
+    // Calibration mode: if screen is held at boot, run the wizard
+    {
+        int16_t _x, _y;
+        if (touch_get_raw(_x, _y)) {
+            calibrate_run();
+            display_draw_layout(); // redraw normal UI after calibration
+        }
+    }
+
     comms_init();
 
     app.sdReady = sdlog_init();

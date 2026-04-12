@@ -1,6 +1,7 @@
 #include "touch.h"
 #include "config.h"
 #include <XPT2046_Touchscreen.h>
+#include <Preferences.h>
 #include <SPI.h>
 
 // Touch uses separate SPI pins from the TFT
@@ -10,6 +11,12 @@ static XPT2046_Touchscreen ts(TOUCH_CS, TOUCH_IRQ);
 static bool deploy_enabled = false;
 static bool confirm_mode = false;
 static uint32_t last_press_ms = 0;
+
+// Runtime calibration values — initialised from config.h, overridable from NVS
+static int16_t cal_min_x = TOUCH_MIN_X;
+static int16_t cal_max_x = TOUCH_MAX_X;
+static int16_t cal_min_y = TOUCH_MIN_Y;
+static int16_t cal_max_y = TOUCH_MAX_Y;
 
 // Button regions (screen coordinates)
 struct ButtonRect {
@@ -38,8 +45,8 @@ static void map_touch(int16_t raw_x, int16_t raw_y, int16_t& sx, int16_t& sy) {
         my = tmp;
     }
 
-    sx = map(mx, TOUCH_MIN_X, TOUCH_MAX_X, 0, SCREEN_W - 1);
-    sy = map(my, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, SCREEN_H - 1);
+    sx = map(mx, cal_min_x, cal_max_x, 0, SCREEN_W - 1);
+    sy = map(my, cal_min_y, cal_max_y, 0, SCREEN_H - 1);
 
     if (TOUCH_INVERT_X) sx = SCREEN_W - 1 - sx;
     if (TOUCH_INVERT_Y) sy = SCREEN_H - 1 - sy;
@@ -55,6 +62,22 @@ void touch_init() {
     touchSPI.begin(TOUCH_CLK, TOUCH_MISO, TOUCH_MOSI, TOUCH_CS);
     ts.begin(touchSPI);
     ts.setRotation(0); // Portrait
+
+    // Load calibration from NVS if a saved calibration exists
+    Preferences prefs;
+    prefs.begin("touch_cal", true); // read-only
+    if (prefs.getBool("valid", false)) {
+        cal_min_x = prefs.getShort("min_x", TOUCH_MIN_X);
+        cal_max_x = prefs.getShort("max_x", TOUCH_MAX_X);
+        cal_min_y = prefs.getShort("min_y", TOUCH_MIN_Y);
+        cal_max_y = prefs.getShort("max_y", TOUCH_MAX_Y);
+        Serial.printf("[touch] Calibration from NVS: X %d-%d  Y %d-%d\n",
+                      cal_min_x, cal_max_x, cal_min_y, cal_max_y);
+    } else {
+        Serial.println("[touch] No saved calibration, using config.h defaults");
+    }
+    prefs.end();
+
     Serial.println("[touch] Initialized");
 }
 
@@ -98,4 +121,24 @@ bool touch_get_raw(int16_t& x, int16_t& y) {
     x = p.x;
     y = p.y;
     return true;
+}
+
+void touch_set_calibration(int16_t min_x, int16_t max_x, int16_t min_y, int16_t max_y) {
+    cal_min_x = min_x;
+    cal_max_x = max_x;
+    cal_min_y = min_y;
+    cal_max_y = max_y;
+}
+
+void touch_save_calibration() {
+    Preferences prefs;
+    prefs.begin("touch_cal", false); // read-write
+    prefs.putBool("valid", true);
+    prefs.putShort("min_x", cal_min_x);
+    prefs.putShort("max_x", cal_max_x);
+    prefs.putShort("min_y", cal_min_y);
+    prefs.putShort("max_y", cal_max_y);
+    prefs.end();
+    Serial.printf("[touch] Calibration saved: X %d-%d  Y %d-%d\n",
+                  cal_min_x, cal_max_x, cal_min_y, cal_max_y);
 }

@@ -2,7 +2,7 @@
 #include "config.h"
 #include <TFT_eSPI.h>
 
-static TFT_eSPI tft = TFT_eSPI();
+TFT_eSPI tft = TFT_eSPI(); // non-static so calibrate.cpp can extern it
 
 // Colors
 #define COL_BG       TFT_BLACK

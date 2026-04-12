@@ -400,7 +400,7 @@
      text-anchor="end"
      fill="#aaccff"
      font-size="9px"
-     id="text31">GPIO 4 (SDA)</text>
+     id="text31">GPIO 8 (SDA)</text>
   <circle
      cx="395"
      cy="267"
@@ -413,7 +413,7 @@
      text-anchor="end"
      fill="#eecc77"
      font-size="9px"
-     id="text32">GPIO 5 (SCL)</text>
+     id="text32">GPIO 10 (SCL)</text>
   <circle
      cx="395"
      cy="297"

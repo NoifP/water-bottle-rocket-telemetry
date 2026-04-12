@@ -46,8 +46,8 @@ water-rocket-telemetry/
 
 | Function       | Pin    | Notes                              |
 |----------------|--------|-------------------------------------|
-| I2C SDA        | GPIO 4 | MPU-6050 + BMP388/BME280 share bus |
-| I2C SCL        | GPIO 5 |                                     |
+| I2C SDA        | GPIO 8  | MPU-6050 + BMP388/BME280 share bus (LOLIN I2C connector) |
+| I2C SCL        | GPIO 10 |                                                          |
 | Servo PWM      | GPIO 6 | LEDC peripheral via ESP32Servo     |
 | Battery ADC    | GPIO 3 | ADC1 -- safe with WiFi active      |
 | Onboard LED    | GPIO 7 | Status indication (blue LED)       |

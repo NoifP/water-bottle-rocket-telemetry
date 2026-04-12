@@ -6,8 +6,8 @@
 // ============================================================================
 
 // --- Pin assignments (Wemos C3 Pico) ---
-#define PIN_SDA          4
-#define PIN_SCL          5
+#define PIN_SDA          8
+#define PIN_SCL          10
 #define PIN_SERVO        6
 #define PIN_BATTERY_ADC  3   // ADC1 -- safe to use with WiFi active
 #define PIN_LED          7   // Onboard blue LED

@@ -28,9 +28,9 @@ The rocket has three external connections: two I2C sensors and one servo. All sh
   Left side          Right side
   ---------          ----------
   GND                RST
-  3.3V               GPIO 10
-  GPIO 4  <-- SDA    GPIO 9  (BOOT)
-  GPIO 5  <-- SCL    GPIO 8
+  3.3V               GPIO 10 <-- SCL (I2C connector)
+  GPIO 4             GPIO 9  (BOOT)
+  GPIO 5             GPIO 8  <-- SDA (I2C connector)
   GPIO 6  <-- SERVO  GPIO 7  <-- LED (onboard)
   GPIO 2             GPIO 20 (TX0)
   GPIO 3  <-- ADC    GPIO 21 (RX0)
@@ -58,8 +58,8 @@ Both the MPU-6050 and the BMP388 (or BME280) connect to the same I2C bus:
 
 | Signal | C3 Pico Pin | Wire Colour (suggested) |
 |--------|-------------|------------------------|
-| SDA    | GPIO 4      | Blue                   |
-| SCL    | GPIO 5      | Yellow                 |
+| SDA    | GPIO 8      | Purple                 |
+| SCL    | GPIO 10     | Yellow                 |
 | VCC    | 3.3V        | Red                    |
 | GND    | GND         | Black                  |
 
@@ -82,9 +82,9 @@ C3 Pico                    MPU-6050          BMP388 / BME280
             │                                          │
 GND   ──────┼───────────── GND               GND ──────┘
             │                                          │
-GPIO 4  ────┼───────────── SDA               SDA ──────┘
+GPIO 8  ────┼───────────── SDA               SDA ──────┘
 (SDA)       │                                          │
-GPIO 5  ────┴───────────── SCL               SCL ──────┘
+GPIO 10 ────┴───────────── SCL               SCL ──────┘
 (SCL)
 ```
 
@@ -118,8 +118,8 @@ With equal resistors, the divider ratio is 2:1, matching the `BATTERY_DIVIDER_RA
 
 | C3 Pico Pin | Connected To         |
 |-------------|----------------------|
-| GPIO 4      | SDA (MPU-6050 + BMP388/BME280) |
-| GPIO 5      | SCL (MPU-6050 + BMP388/BME280) |
+| GPIO 8      | SDA (MPU-6050 + BMP388/BME280) |
+| GPIO 10     | SCL (MPU-6050 + BMP388/BME280) |
 | GPIO 6      | Servo signal wire    |
 | GPIO 3      | Battery voltage divider (optional) |
 | GPIO 7      | Onboard LED (built-in, no wiring needed) |

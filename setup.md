@@ -38,6 +38,20 @@ The rocket has three external connections: two I2C sensors and one servo. All sh
          [USB-C]
 ```
 
+Lolin Wemos I2C socket pinout
+
+*  (USB-C at bottom, top view) - cable color is based on Lolin I2C cables.
+*  Pin numbers start from edge of board.
+*  Plug is JST SH1.0 (4 pin) that uses 28AWG wire.
+
+| Pin | Color  | Function | C3 Pin |
+|-----|--------|----------|--------|
+|  1  | Black  |    GND   |  GND   |
+|  2  | Purple |    SDA   | GPIO8  |
+|  3  | Yellow |    SCL   | GPIO10 |
+|  4  | Red    |    3v3   |  3v3   |
+
+
 ### I2C Bus (shared by both sensors)
 
 Both the MPU-6050 and the BMP388 (or BME280) connect to the same I2C bus:
@@ -65,11 +79,11 @@ Use **either** a BMP388 or a BME280 for the barometer -- the firmware auto-detec
 C3 Pico                    MPU-6050          BMP388 / BME280
 -------                    --------          ---------------
 3.3V  ──────┬───────────── VCC               VCC ──────┘
-            │                                           │
+            │                                          │
 GND   ──────┼───────────── GND               GND ──────┘
-            │                                           │
+            │                                          │
 GPIO 4  ────┼───────────── SDA               SDA ──────┘
-(SDA)       │                                           │
+(SDA)       │                                          │
 GPIO 5  ────┴───────────── SCL               SCL ──────┘
 (SCL)
 ```
@@ -91,7 +105,7 @@ Both sensors connect in parallel on the same 4 wires. If your sensor breakout bo
 To monitor the LiPo voltage, connect a voltage divider to **GPIO 3** (ADC1 -- safe to use with WiFi active):
 
 ```
-LiPo (+) ──── [R1 10kΩ] ──┬── GPIO 3 (ADC)
+LiPo (+) ────── [R1 10kΩ] ──┬── GPIO 3 (ADC)
                             │
                       [R2 10kΩ]
                             │

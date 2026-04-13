@@ -85,6 +85,8 @@ void display_init() {
 }
 
 void display_draw_layout() {
+    tft.fillScreen(COL_BG);
+
     // Header bar
     tft.fillRect(0, 0, SCREEN_W, 24, COL_HEADER);
     tft.setTextColor(COL_TEXT, COL_HEADER);

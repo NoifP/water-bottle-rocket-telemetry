@@ -17,8 +17,8 @@
 #define TOUCH_MIN_Y    200
 #define TOUCH_MAX_Y    3800
 #define TOUCH_SWAP_XY  false
-#define TOUCH_INVERT_X false
-#define TOUCH_INVERT_Y true
+#define TOUCH_INVERT_X true
+#define TOUCH_INVERT_Y false
 
 // --- Touch timing ---
 #define TOUCH_DEBOUNCE_MS    50

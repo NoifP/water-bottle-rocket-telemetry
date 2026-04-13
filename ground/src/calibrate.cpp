@@ -131,9 +131,20 @@ void calibrate_run() {
         draw_header("TOUCH CALIBRATION");
         tft.setTextColor(TFT_RED, COL_BG);
         tft.setTextFont(2);
-        tft.setCursor(20, 150);
+        tft.setCursor(20, 120);
         tft.print("Bad readings — try again");
-        delay(3000);
+        char dbuf[32];
+        tft.setTextColor(COL_DIM, COL_BG);
+        snprintf(dbuf, sizeof(dbuf), "T1: %d,%d", rx1, ry1);
+        tft.setCursor(20, 148);
+        tft.print(dbuf);
+        snprintf(dbuf, sizeof(dbuf), "T2: %d,%d", rx2, ry2);
+        tft.setCursor(20, 164);
+        tft.print(dbuf);
+        snprintf(dbuf, sizeof(dbuf), "RangeX:%d RangeY:%d", max_x-min_x, max_y-min_y);
+        tft.setCursor(20, 180);
+        tft.print(dbuf);
+        delay(5000);
         return;
     }
 

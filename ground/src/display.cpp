@@ -1,5 +1,6 @@
 #include "display.h"
 #include "config.h"
+#include "touch.h"
 #include <TFT_eSPI.h>
 
 TFT_eSPI tft = TFT_eSPI(); // non-static so calibrate.cpp can extern it
@@ -127,6 +128,24 @@ void display_update(const AppState& state) {
 
         // Signal bars
         draw_signal_bars(0);
+
+        // Footer: touch coordinates (always visible for calibration diagnostics)
+        tft.fillRect(0, 279, SCREEN_W, 41, COL_BG);
+        tft.setTextColor(COL_LABEL, COL_BG);
+        tft.setTextFont(1);
+        {
+            int16_t tx, ty, rx, ry;
+            touch_get_last_pos(tx, ty);
+            touch_get_last_raw(rx, ry);
+            char tbuf[40];
+            if (tx < 0) {
+                snprintf(tbuf, sizeof(tbuf), "T:--,--  R:--,--");
+            } else {
+                snprintf(tbuf, sizeof(tbuf), "T:%d,%d  R:%d,%d", tx, ty, rx, ry);
+            }
+            tft.setCursor(4, 283);
+            tft.print(tbuf);
+        }
         return;
     }
 
@@ -179,9 +198,24 @@ void display_update(const AppState& state) {
     tft.print(buf);
 
     // Status footer
-    tft.fillRect(0, 296, SCREEN_W, 24, COL_BG);
+    tft.fillRect(0, 279, SCREEN_W, 41, COL_BG);
     tft.setTextColor(COL_LABEL, COL_BG);
     tft.setTextFont(1);
+
+    // Last touch coordinates (mapped then raw) for calibration diagnostics
+    {
+        int16_t tx, ty, rx, ry;
+        touch_get_last_pos(tx, ty);
+        touch_get_last_raw(rx, ry);
+        char tbuf[40];
+        if (tx < 0) {
+            snprintf(tbuf, sizeof(tbuf), "T:--,--  R:--,--");
+        } else {
+            snprintf(tbuf, sizeof(tbuf), "T:%d,%d  R:%d,%d", tx, ty, rx, ry);
+        }
+        tft.setCursor(4, 283);
+        tft.print(tbuf);
+    }
 
     // SD status
     tft.setCursor(4, 300);

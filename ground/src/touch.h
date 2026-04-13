@@ -27,6 +27,12 @@ void touch_set_confirm_mode(bool active);
 // Get raw touch coordinates (for calibration)
 bool touch_get_raw(int16_t& x, int16_t& y);
 
+// Last mapped screen coordinates from any touch (x/y = -1 if never touched)
+void touch_get_last_pos(int16_t& x, int16_t& y);
+
+// Last raw ADC coordinates from any touch (x/y = -1 if never touched)
+void touch_get_last_raw(int16_t& x, int16_t& y);
+
 // Override calibration min/max values at runtime
 void touch_set_calibration(int16_t min_x, int16_t max_x, int16_t min_y, int16_t max_y);
 

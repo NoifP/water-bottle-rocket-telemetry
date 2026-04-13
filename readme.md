@@ -22,10 +22,26 @@ The ground station will record all received telemetry to a microsd card.
 
 * Brains + Screen: ESP32-2432S028R ( these boards have both usb-c and micro-usb power connectors, so are the 'version 3' variant of the board with the st7789 display driver )
 
+## Ground station touch calibration
+
+The touchscreen ships with default calibration values that may be off for your specific CYD panel. To run the on-device calibration wizard:
+
+1. Power off the ground station.
+2. Press and hold your finger on the screen.
+3. Power on while keeping your finger held on the screen.
+4. A progress bar appears — hold for 2 seconds until it fills. Release early to skip.
+5. Tap the crosshair in the **top-left** corner when prompted (1 of 2).
+6. Tap the crosshair in the **bottom-right** corner when prompted (2 of 2).
+7. "Calibration saved!" is shown and the normal UI resumes.
+
+Calibration is stored in NVS flash and survives reboots. To recalibrate, repeat from step 1.
+
+The footer of the main screen shows `T:x,y  R:x,y` — mapped screen coordinates and raw ADC values — useful for verifying calibration without serial output.
+
 ## Next steps
 
 1. Update GROUND_MAC / ROCKET_MAC in each config.h with actual MAC addresses (printed to Serial on boot)
-1. Calibrate touch constants with your actual CYD hardware
+1. Run touch calibration on your CYD hardware (see above)
 1. Tune apogee detection thresholds with bench testing (shake/drop the board)
 
 

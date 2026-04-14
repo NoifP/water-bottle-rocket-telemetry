@@ -2,6 +2,7 @@
 #include "config.h"
 #include <SD.h>
 #include <SPI.h>
+#include <time.h>
 
 struct LogEntry {
     TelemetryPacket pkt;
@@ -72,7 +73,7 @@ bool sdlog_start_flight() {
 
     // Write CSV header
     log_file.println(
-        "ground_ms,rocket_ms,altitude_m,speed_mps,accel_g,"
+        "datetime,ground_ms,rocket_ms,altitude_m,speed_mps,accel_g,"
         "accel_x,accel_y,accel_z,pressure_pa,temp_c,humidity_pct,"
         "state,chute,batt_v,rssi"
     );
@@ -111,10 +112,21 @@ void sdlog_flush_some(int max_rows) {
         const LogEntry& entry = ring_buffer[ring_tail];
         const TelemetryPacket& p = entry.pkt;
 
+        // Format datetime prefix
+        char dtbuf[20];
+        time_t now_t = time(NULL);
+        if (now_t > 1000000000L) {
+            struct tm* tm_info = localtime(&now_t);
+            strftime(dtbuf, sizeof(dtbuf), "%Y-%m-%d %H:%M:%S", tm_info);
+        } else {
+            strcpy(dtbuf, "0000-00-00 00:00:00");
+        }
+
         // Format CSV row
-        char buf[256];
+        char buf[280];
         int len = snprintf(buf, sizeof(buf),
-            "%lu,%lu,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.1f,%.1f,%.1f,%d,%d,%.2f,%d\n",
+            "%s,%lu,%lu,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.1f,%.1f,%.1f,%d,%d,%.2f,%d\n",
+            dtbuf,
             (unsigned long)entry.ground_ms,
             (unsigned long)p.timestamp_ms,
             p.altitude_m,

@@ -14,18 +14,22 @@ static int16_t last_sy = -1;
 static int16_t last_rx = -1;
 static int16_t last_ry = -1;
 
-static bool deploy_enabled = false;
-static bool confirm_mode   = false;
-static uint32_t last_press_ms = 0;
+static bool     deploy_enabled = false;
+static bool     confirm_mode   = false;
+static uint32_t last_press_ms  = 0;
 
-// Button regions (screen coordinates)
-struct ButtonRect { int16_t x, y, w, h; };
+// Generic tap state — set after any cooldown-gated touch, cleared by touch_get_tap()
+static bool    tap_pending = false;
+static int16_t tap_sx = -1, tap_sy = -1;
+
+// Main-screen button regions (screen coordinates)
 static const ButtonRect btn_arm_rect    = {8,   230, 108, 44};
 static const ButtonRect btn_deploy_rect = {124, 230, 108, 44};
 static const ButtonRect btn_yes_rect    = {40,  175, 70,  36};
 static const ButtonRect btn_no_rect     = {130, 175, 70,  36};
 
-static bool rect_contains(const ButtonRect& r, int16_t tx, int16_t ty) {
+// Public non-static rect_contains() — declared in touch.h, used by screen modules
+bool rect_contains(const ButtonRect& r, int16_t tx, int16_t ty) {
     return tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h;
 }
 
@@ -158,6 +162,14 @@ ButtonId touch_update() {
 
     last_press_ms = now;
 
+    // Record tap for touch_get_tap() — available to all screens
+    tap_pending = true;
+    tap_sx = sx;
+    tap_sy = sy;
+
+    // ≡ menu button: top-right header area (active on any screen, routed in main.cpp)
+    if (!confirm_mode && sx >= 210 && sy < 24) return BTN_MENU;
+
     if (confirm_mode) {
         if (rect_contains(btn_yes_rect, sx, sy)) return BTN_CONFIRM_YES;
         if (rect_contains(btn_no_rect,  sx, sy)) return BTN_CONFIRM_NO;
@@ -205,4 +217,12 @@ void touch_save_calibration() {
     prefs.end();
     Serial.printf("[touch] Calibration saved: X %d-%d  Y %d-%d\n",
                   cal_min_x, cal_max_x, cal_min_y, cal_max_y);
+}
+
+bool touch_get_tap(int16_t& sx, int16_t& sy) {
+    if (!tap_pending) return false;
+    sx = tap_sx;
+    sy = tap_sy;
+    tap_pending = false;
+    return true;
 }

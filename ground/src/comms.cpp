@@ -35,7 +35,10 @@ static void on_data_sent(const uint8_t* mac, esp_now_send_status_t status) {
 }
 
 void comms_init() {
-    WiFi.mode(WIFI_STA);
+    // Preserve WIFI_AP_STA if timesync_init() already set it (SoftAP running)
+    if (WiFi.getMode() != WIFI_AP_STA) {
+        WiFi.mode(WIFI_STA);
+    }
     WiFi.disconnect();
 
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);

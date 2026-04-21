@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include "config.h"
 #include "prefs.h"
+#include "comms.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <time.h>
@@ -76,7 +77,7 @@ static void start_ap() {
         IPAddress(10, 0, 0,  1),
         IPAddress(255, 255, 255, 0)
     );
-    WiFi.softAP("WaterRocketGS", nullptr, ESPNOW_CHANNEL);
+    WiFi.softAP("WaterRocketGS", nullptr, prefs_get_channel());
     server.on("/",        handle_root);
     server.on("/settime", handle_settime);
     server.begin();
@@ -93,6 +94,9 @@ void timesync_stop() {
     server.stop();
     WiFi.softAPdisconnect(true);
     ap_running = false;
+    // Stopping the AP can knock the STA interface off the ESP-NOW channel
+    // on some IDF versions; re-lock it so telemetry RX keeps working.
+    comms_reapply_channel();
     Serial.println("[timesync] AP stopped");
 }
 

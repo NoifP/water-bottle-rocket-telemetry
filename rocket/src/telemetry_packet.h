@@ -10,7 +10,7 @@
 
 #define TELEMETRY_MAGIC  0xAA
 #define COMMAND_MAGIC    0xBB
-#define PROTOCOL_VERSION 1
+#define PROTOCOL_VERSION 2
 
 // --- Flight states ---
 enum class FlightState : uint8_t {
@@ -25,11 +25,12 @@ enum class FlightState : uint8_t {
 
 // --- Commands (ground -> rocket) ---
 enum class Command : uint8_t {
-    NONE          = 0,
-    ARM           = 1,
-    DISARM        = 2,
-    MANUAL_DEPLOY = 3,
-    PING          = 4,
+    NONE            = 0,
+    ARM             = 1,
+    DISARM          = 2,
+    MANUAL_DEPLOY   = 3,
+    PING            = 4,
+    DISCOVERY_REPLY = 5, // Ground acknowledges a FLAG_DISCOVERY telemetry packet
 };
 
 // --- Telemetry flags bitfield ---
@@ -37,6 +38,7 @@ enum class Command : uint8_t {
 #define FLAG_APOGEE_DETECTED (1 << 1)
 #define FLAG_MANUAL_DEPLOY   (1 << 2)
 #define FLAG_LOW_BATTERY     (1 << 3)
+#define FLAG_DISCOVERY       (1 << 4) // Rocket is probing for the ground station's channel
 
 // --- Rocket -> Ground telemetry packet (67 bytes) ---
 struct __attribute__((packed)) TelemetryPacket {

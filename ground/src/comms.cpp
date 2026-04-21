@@ -1,5 +1,6 @@
 #include "comms.h"
 #include "config.h"
+#include "prefs.h"
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
@@ -8,6 +9,18 @@ static volatile bool new_packet = false;
 static TelemetryPacket rx_packet;
 static int8_t last_rssi = 0;
 static uint32_t last_rx_ms = 0;
+
+static void send_discovery_reply() {
+    CommandPacket reply = {};
+    reply.magic = COMMAND_MAGIC;
+    reply.command = Command::DISCOVERY_REPLY;
+    reply.token = 0;
+    reply.checksum = compute_checksum(&reply, sizeof(CommandPacket) - 1);
+    // Send to the registered peer (ROCKET_MAC) — same path every other
+    // command uses — so it works whether ROCKET_MAC is broadcast or a
+    // specific MAC configured via config_local.h.
+    esp_now_send(ROCKET_MAC, (const uint8_t*)&reply, sizeof(CommandPacket));
+}
 
 // ESP-NOW receive callback
 static void on_data_recv(const uint8_t* mac, const uint8_t* data, int len) {
@@ -22,6 +35,14 @@ static void on_data_recv(const uint8_t* mac, const uint8_t* data, int len) {
     uint8_t expected = compute_checksum(data, sizeof(TelemetryPacket) - 1);
     if (pkt->checksum != expected) return;
 
+    // If this is a discovery probe, reply immediately and don't surface it
+    // as a normal telemetry packet (its sensor fields are meaningless).
+    if (pkt->flags & FLAG_DISCOVERY) {
+        send_discovery_reply();
+        last_rx_ms = millis();
+        return;
+    }
+
     // Copy to buffer
     memcpy(&rx_packet, pkt, sizeof(TelemetryPacket));
     new_packet = true;
@@ -34,6 +55,10 @@ static void on_data_sent(const uint8_t* mac, esp_now_send_status_t status) {
     (void)status;
 }
 
+static void apply_channel(uint8_t ch) {
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+}
+
 void comms_init() {
     // Preserve WIFI_AP_STA if timesync_init() already set it (SoftAP running)
     if (WiFi.getMode() != WIFI_AP_STA) {
@@ -41,7 +66,8 @@ void comms_init() {
     }
     WiFi.disconnect();
 
-    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    uint8_t ch = prefs_get_channel();
+    apply_channel(ch);
 
     if (esp_now_init() != ESP_OK) {
         Serial.println("[comms] ESP-NOW init FAILED");
@@ -54,14 +80,14 @@ void comms_init() {
     // Register rocket as peer for sending commands
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, ROCKET_MAC, 6);
-    peer.channel = ESPNOW_CHANNEL;
+    peer.channel = ch;
     peer.encrypt = false;
 
     if (esp_now_add_peer(&peer) != ESP_OK) {
         Serial.println("[comms] Failed to add rocket peer");
     }
 
-    Serial.println("[comms] ESP-NOW initialized");
+    Serial.printf("[comms] ESP-NOW initialized on channel %u\n", (unsigned)ch);
     comms_print_mac();
 }
 
@@ -98,4 +124,28 @@ void comms_print_mac() {
     WiFi.macAddress(mac);
     Serial.printf("[comms] Ground MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
                   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void comms_set_channel(uint8_t ch) {
+    if (ch < 1 || ch > 13) return;
+    prefs_set_channel(ch);
+
+    // Remove the existing peer so we can re-add it on the new channel.
+    esp_now_del_peer(ROCKET_MAC);
+
+    apply_channel(ch);
+
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, ROCKET_MAC, 6);
+    peer.channel = ch;
+    peer.encrypt = false;
+    if (esp_now_add_peer(&peer) != ESP_OK) {
+        Serial.println("[comms] Failed to re-add rocket peer after channel change");
+    }
+
+    Serial.printf("[comms] Channel changed to %u\n", (unsigned)ch);
+}
+
+void comms_reapply_channel() {
+    apply_channel(prefs_get_channel());
 }

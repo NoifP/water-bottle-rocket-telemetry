@@ -45,7 +45,9 @@
 #define VSPEED_ALPHA           0.3f   // Exponential smoothing factor for vertical speed
 
 // --- ESP-NOW ---
-#define ESPNOW_CHANNEL         1
+// Channel is stored in NVS (see prefs_get_channel) and may be updated at
+// runtime via the discovery sweep. This define is only the initial fallback.
+#define ESPNOW_CHANNEL_DEFAULT 1
 // Ground station MAC address -- update this to match your ground station
 #if !__has_include("config_local.h")
 static const uint8_t GROUND_MAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // broadcast

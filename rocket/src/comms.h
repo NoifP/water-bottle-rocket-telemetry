@@ -22,3 +22,11 @@ uint32_t comms_get_last_rx_ms();
 
 // Print this device's MAC address to Serial
 void comms_print_mac();
+
+// Sweep WiFi channels looking for the ground station. First tries the
+// channel saved in NVS; if no DISCOVERY_REPLY arrives, cycles through
+// channels 1..13. On success, persists the winning channel via
+// prefs_set_channel() and returns true. On failure (no reply anywhere),
+// restores the previously saved channel and returns false.
+// Blocks for up to ~3 seconds in the worst case.
+bool comms_discover_channel();

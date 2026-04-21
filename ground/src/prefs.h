@@ -13,3 +13,7 @@ void      prefs_set_gravity_offset(bool enabled);
 // Positive = west (e.g. UTC-5 → +300), negative = east (e.g. UTC+10 → -600).
 int16_t   prefs_get_tz_offset();
 void      prefs_set_tz_offset(int16_t minutes); // saves to NVS and applies immediately
+
+// ESP-NOW WiFi channel (1..13). Persisted in the "radio" NVS namespace.
+uint8_t   prefs_get_channel();
+void      prefs_set_channel(uint8_t ch); // caller is responsible for re-configuring the radio

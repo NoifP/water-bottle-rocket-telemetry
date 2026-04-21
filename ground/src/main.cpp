@@ -11,11 +11,12 @@
 #include "screen_menu.h"
 #include "screen_settings.h"
 #include "screen_units.h"
+#include "screen_channel.h"
 
 static AppState app = {};
 
 // Screen state machine
-enum AppScreen { SCREEN_MAIN, SCREEN_MENU, SCREEN_SETTINGS, SCREEN_UNITS };
+enum AppScreen { SCREEN_MAIN, SCREEN_MENU, SCREEN_SETTINGS, SCREEN_UNITS, SCREEN_CHANNEL };
 static AppScreen currentScreen = SCREEN_MAIN;
 
 // Timing
@@ -134,8 +135,18 @@ static void handle_settings_tap(int16_t tx, int16_t ty) {
     } else if (rect_contains(SETTINGS_BTN_UNITS, tx, ty)) {
         currentScreen = SCREEN_UNITS;
         screen_units_draw(prefs_get_speed_unit(), prefs_get_gravity_offset());
+    } else if (rect_contains(SETTINGS_BTN_CHANNEL, tx, ty)) {
+        currentScreen = SCREEN_CHANNEL;
+        screen_channel_enter();
     } else if (tx >= 210 && ty < 24) {
         navigate_to_main();
+    }
+}
+
+static void handle_channel_tap(int16_t tx, int16_t ty) {
+    if (screen_channel_handle_tap(tx, ty)) {
+        currentScreen = SCREEN_SETTINGS;
+        screen_settings_draw(timesync_is_running(), timesync_is_synced());
     }
 }
 
@@ -257,6 +268,10 @@ void loop() {
 
             case SCREEN_UNITS:
                 if (has_tap) handle_units_tap(tx, ty);
+                break;
+
+            case SCREEN_CHANNEL:
+                if (has_tap) handle_channel_tap(tx, ty);
                 break;
         }
     }

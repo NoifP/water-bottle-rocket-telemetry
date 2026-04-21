@@ -1,5 +1,6 @@
 #include "screen_settings.h"
 #include "config.h"
+#include "prefs.h"
 #include <TFT_eSPI.h>
 #include <time.h>
 #include <Arduino.h>
@@ -7,9 +8,10 @@
 extern TFT_eSPI tft;
 
 // Full-width buttons, stacked vertically
-const ButtonRect SETTINGS_BTN_TIME  = {8,  40, 224, 52};
-const ButtonRect SETTINGS_BTN_CAL   = {8, 104, 224, 48};
-const ButtonRect SETTINGS_BTN_UNITS = {8, 164, 224, 48};
+const ButtonRect SETTINGS_BTN_TIME    = {8,  40, 224, 52};
+const ButtonRect SETTINGS_BTN_CAL     = {8, 104, 224, 44};
+const ButtonRect SETTINGS_BTN_UNITS   = {8, 156, 224, 44};
+const ButtonRect SETTINGS_BTN_CHANNEL = {8, 208, 224, 44};
 
 static const uint16_t COL_BG      = TFT_BLACK;
 static const uint16_t COL_HEADER  = 0x000F;
@@ -75,4 +77,8 @@ void screen_settings_draw(bool ap_running, bool time_synced) {
     // --- Display Units ---
     draw_full_btn(SETTINGS_BTN_UNITS, COL_BTN, "Display Units");
 
+    // --- WiFi Channel ---
+    char chan_sub[24];
+    snprintf(chan_sub, sizeof(chan_sub), "Current: Ch %u", (unsigned)prefs_get_channel());
+    draw_full_btn(SETTINGS_BTN_CHANNEL, COL_BTN, "WiFi Channel", chan_sub);
 }

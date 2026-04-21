@@ -5,6 +5,7 @@
 #include "altimeter.h"
 #include "parachute.h"
 #include "comms.h"
+#include "prefs.h"
 #include "state_machine.h"
 
 static uint16_t seq_counter = 0;
@@ -72,7 +73,9 @@ void setup() {
 
     altimeter_init();
     parachute_init();
+    prefs_init();
     comms_init();
+    comms_discover_channel();
     state_machine_init();
 
     last_loop_us = micros();

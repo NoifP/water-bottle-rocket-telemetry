@@ -43,7 +43,10 @@
 #define SD_RING_BUFFER_SIZE 128
 
 // --- ESP-NOW ---
-#define ESPNOW_CHANNEL 1
+// The ESP-NOW channel is stored in NVS (see prefs_get_channel) and configured
+// at runtime via the settings screen. This define is only used as the initial
+// fallback if no saved value exists yet.
+#define ESPNOW_CHANNEL_DEFAULT 1
 // Rocket MAC address -- update this to match your rocket
 static const uint8_t ROCKET_MAC[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // broadcast
 
